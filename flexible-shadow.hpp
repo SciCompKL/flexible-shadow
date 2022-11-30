@@ -1,3 +1,6 @@
+#ifndef FLEXIBLE_SHADOW_HPP
+#define FLEXIBLE_SHADOW_HPP
+
 /* \file flexible-shadow.hpp
  *
  * Versatile C++ template implementation of shadow memory
@@ -252,4 +255,4 @@ struct ShadowMap<Address,Leaf,StandardLibraryInterface,dimension0>{
   }
 };
 
-
+#endif

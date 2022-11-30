@@ -1,3 +1,6 @@
+#ifndef FLEXIBLE_SHADOW_VALGRINDSTDLIB_HPP
+#define FLEXIBLE_SHADOW_VALGRINDSTDLIB_HPP
+
 #include <pub_tool_mallocfree.h> // VG_(malloc), VG_(free)
 #include <pub_tool_libcprint.h> // VG_(printf)
 #include <pub_tool_libcbase.h> // VG_(memcpy)
@@ -23,3 +26,4 @@ struct ValgrindStandardLibraryInterface {
   }
 
 };
+#endif

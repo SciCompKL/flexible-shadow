@@ -1,3 +1,6 @@
+#ifndef FLEXIBLE_SHADOW_DEFAULTSTDLIB_HPP
+#define FLEXIBLE_SHADOW_DEFAULTSTDLIB_HPP
+
 #include <cstdlib> // malloc, free
 #include <cstring> // memcpy
 #include <iostream> // std::cerr, std::endl
@@ -22,3 +25,5 @@ struct DefaultStandardLibraryInterface {
   }
 
 };
+
+#endif
