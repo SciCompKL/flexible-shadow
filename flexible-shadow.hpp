@@ -25,35 +25,41 @@ void shadow_free(void* ptr);
 
 /*! \struct ShadowMap
  *
- * A ShadowMap of level N=0 stores 2^dimension0 many shadow objects, and therefore
- * provides shadow memory for an address space of dimension0-many bits.
+ * A ShadowMap of level N=0, stores 2^dimension0 many shadow objects as a "leaf", and 
+ * therefore provides shadow memory for an address space of dimension0-many bits.
  * A ShadowMap of level N>0 can store 2^dimension0 many ShadowMap's of level (N-1),
  * and therefore provides shadow memory for an address space of 
  * (dimension0+...+dimensionN)-many bits. The lower-level ShadowMap's are only
- * instantiated if the part of the address space covered by them is actually accessed.
+ * instantiated if the part of the address space that they cover is actually accessed.
  *
- * This template does not use any functions from the standard library by itself.
- * It needs memory allocation functionaliy which must be provided by the template-instantiating code
+ * To access the shadow memory at address addr, obtain a pointer to the leaf shadowing 
+ * addr with ShadowMap::leaf or ShadowMap::leaf_for_write, and access it at the index
+ * calculated by ShadowMap::index. This two-stage procedure allows the user to store 
+ * complex shadow types either in an array-of-structures or a structure-of-arrays fashion.
+ * ShadowMap::leaf returns a nullptr if the memory address is not currently shadowed,
+ * while ShadowMap::leaf_for_write allocates 
+ *
+ * This template, by itself, does not use any functions from the standard library.
+ * It needs memory allocation functionality which must be provided by the template-instantiating code
  * through the template parameters shadow_malloc, shadow_free.
  * This class asserts that shadow_malloc always returns valid memory; if memory allocation fails,
- * it should terminate the program.
- *
+ * shadow_malloc should terminate the program.
  *
  * \tparam Address Type of an address, e.g. unsigned long long with 64 bit.
- * \tparam Shadow Type of shadow data stored on top of each original data byte.
+ * \tparam Leaf Type of shadow data stored on top of each original data byte.
  * \tparam shadow_malloc Memory allocator function.
  * \tparam shadow_free Memory deallocator function.
  * \tparam dimension0 Number of address bits processed by highest-level map.
  * \tparam dimensions... Numbers of address bits processed by lower-level maps.
  */
-template<typename Address, typename Shadow, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0, int...dimensions>
+template<typename Address, typename Leaf, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0, int...dimensions>
 struct ShadowMap {
   /*! Type of lower-level map, this map stores pointers to such objects.
    */
-  using Lower = ShadowMap<Address,Shadow,shadow_malloc,shadow_free,dimensions...>;
+  using Lower = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimensions...>;
   /*! Type of this class.
    */
-  using This = ShadowMap<Address,Shadow,shadow_malloc,shadow_free,dimension0,dimensions...>;
+  using This = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0,dimensions...>;
 
   /*! Number of address bits covered by this map and all lower-level maps.
    */
@@ -94,29 +100,45 @@ struct ShadowMap {
     }
   }
 
-  /*! Given a memory address, return a pointer to the shadow data.
+  /*! Given a memory address, return a pointer to leaf shadowing it,
+   * or nullptr if the memory address is not shadowed.
    *
-   * If the shadow map does not store shadow data for this address, 
-   * either return a null pointer (allocate==false) or allocate storage
-   * for the shadow data (allocate==true).
    * \param addr Memory address.
-   * \tparam allocate Whether to allocate shadow storage for previously unseen addresses.
    */
-  template<bool allocate=false>
-  Shadow* data(Address addr){
+  Leaf* leaf(Address addr){
     unsigned long long index = (addr>>Lower::dimensions_sum) & ((1ul<<dimension0)-1);
     Lower* pointer = _pointers[ index ];
     if(pointer==nullptr){
-      if(allocate){
-        _pointers[index] = (Lower*)shadow_malloc(sizeof(Lower));
-        Lower::constructAt(_pointers[index]);
-        return _pointers[index]->template data<allocate>(addr);
-      } else {
-        return nullptr;
-      }
+      return nullptr;
     } else {
-      return pointer->template data<allocate>(addr);
+      return pointer->leaf(addr);
     }
+  }
+
+  /*! Given a memory address, return a pointer to leaf shadowing it,
+   * allocating it if the memory address is not shadowed yet.
+   *
+   * \param addr Memory address.
+   */
+  Leaf* leaf_for_write(Address addr){
+    unsigned long long index = (addr>>Lower::dimensions_sum) & ((1ul<<dimension0)-1);
+    Lower* pointer = _pointers[ index ];
+    if(pointer==nullptr){
+      _pointers[index] = (Lower*)shadow_malloc(sizeof(Lower));
+      Lower::constructAt(_pointers[index]);
+      return _pointers[index]->leaf_for_write(addr);
+    } else {
+      return pointer->leaf_for_write(addr);
+    }
+  }
+
+  /*! Return the index of a memory address withing a leaf shadowing it.
+   *
+   * The leaf does not need to be allocated for this calculation.
+   * \param addr Memory address.
+   */
+  static unsigned long long index(Address addr){
+    return Lower::index(addr);
   }
 
   /*! Return the maximal N such that the shadow objects for the addresses 
@@ -129,13 +151,13 @@ struct ShadowMap {
 };
 
 
-template<typename Address, typename Shadow, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0>
-struct ShadowMap<Address,Shadow,shadow_malloc,shadow_free,dimension0>{
+template<typename Address, typename Leaf, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0>
+struct ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0>{
 
-  using This = ShadowMap<Address,Shadow,shadow_malloc,shadow_free,dimension0>;
+  using This = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0>;
   static constexpr int dimensions_sum = dimension0;
 
-  Shadow _data[1ul<<dimension0];
+  Leaf _leaf;
 
   ShadowMap(){
     constructAt(this);
@@ -145,22 +167,27 @@ struct ShadowMap<Address,Shadow,shadow_malloc,shadow_free,dimension0>{
   }
 
   static void constructAt(This* map){
-    for(unsigned long long i=0; i<(1ul<<dimension0); i++){
-      map->_data[i] = 0;
-    }
+    map->_leaf.construct();
   }
 
   static void destructAt(This* map){
-    // nothing to do
+    map->_leaf.destruct();
   }
 
-  template<bool allocate=false>
-  Shadow* data(Address addr){
-    return &_data[ addr & ((1ul<<dimension0)-1) ];
+  Leaf* leaf(Address addr){
+    return &_leaf; 
+  }
+
+  Leaf* leaf_for_write(Address addr){
+    return &_leaf; 
+  }
+
+  static unsigned long long index(Address addr){
+    return addr & ((1ul<<dimension0)-1);
   }
 
   static Address contiguousElements(Address addr){
-    return (1ul<<dimension0) - addr;
+    return (1ul<<dimension0) - index(addr);
   }
 };
 
