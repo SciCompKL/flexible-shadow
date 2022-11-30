@@ -2,26 +2,41 @@
  * Define shadow memory functionality using templates.
  */
 
-/*! Allocate memory. 
- *
- * shadow_malloc and shadow_free are only declared and used,
- * but not defined in this file. 
- * If you include this header, make sure to define them, 
- * e.g. by compiling with flexible-shadow-standardallocation.cpp.
- *
- * The code in this file expects the function to always return
- * a valid pointer. If memory allocation fails, do not return a 
- * null pointer, terminate the program. 
- *
- * \param size Number of bytes to be allocated.
- * \returns Pointer to allocated memory, 
- */
-void* shadow_malloc(unsigned long long size);
 
-/*! Free memory allocated by shadow_malloc.
- * \param ptr Pointer to memory.
+/*! \struct ShadowStandardLibraryInterface
+ * Standard library-like functions to be used by ShadowMap objects.
+ * 
+ * The template ShadowMap, by itself, does not use any functions
+ * of the standard library. It needs memory allocation functionality,
+ * which must be provided by the template-instantiating code
+ * through the template parameter StandardLibraryInterface. 
+ * 
+ * This struct is a mock interface for the purpose of documentation,
+ * do not use it in your code.
+ * "Normal" C++ code may include flexible-shadow-defaultstdlib.hpp and
+ * use DefaultStandardLibraryInterface. 
+ * Code linked into a Valgrind tool cannot link against the standard 
+ * library, and must use VG_(malloc), VG_(free), e.g. with the
+ * ValgrindStandardLibraryInterface in flexible-shadow-valgrindstdlib.hpp.
  */
-void shadow_free(void* ptr);
+struct MockStandardLibraryInterface {
+  /*! Memory allocation.
+   *
+   * If memory allocation fails, this function must terminate the
+   * program.
+   * 
+   * \param size Number of bytes to be allocated.
+   * \returns Pointer to allocated block.
+   */
+  static void* safe_malloc(unsigned long long size) { return nullptr; }
+
+  /*! Memory deallocation.
+   * \param ptr Pointer to block of memory allocated by safe_malloc.
+   */
+  static void free(void* ptr) {}
+
+};
+
 
 /*! \struct ShadowMap
  *
@@ -41,25 +56,22 @@ void shadow_free(void* ptr);
  *
  * This template, by itself, does not use any functions from the standard library.
  * It needs memory allocation functionality which must be provided by the template-instantiating code
- * through the template parameters shadow_malloc, shadow_free.
- * This class asserts that shadow_malloc always returns valid memory; if memory allocation fails,
- * shadow_malloc should terminate the program.
+ * through static methods of the template typename parameter StandardLibraryInterface.
  *
  * \tparam Address Type of an address, e.g. unsigned long long with 64 bit.
  * \tparam Leaf Type of shadow data stored on top of each original data byte.
- * \tparam shadow_malloc Memory allocator function.
- * \tparam shadow_free Memory deallocator function.
+ * \tparam StandardLibraryInterface Class containing static functions safe_malloc, free.
  * \tparam dimension0 Number of address bits processed by highest-level map.
  * \tparam dimensions... Numbers of address bits processed by lower-level maps.
  */
-template<typename Address, typename Leaf, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0, int...dimensions>
+template<typename Address, typename Leaf, typename StandardLibraryInterface, int dimension0, int...dimensions>
 struct ShadowMap {
   /*! Type of lower-level map, this map stores pointers to such objects.
    */
-  using Lower = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimensions...>;
+  using Lower = ShadowMap<Address,Leaf,StandardLibraryInterface,dimensions...>;
   /*! Type of this class.
    */
-  using This = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0,dimensions...>;
+  using This = ShadowMap<Address,Leaf,StandardLibraryInterface,dimension0,dimensions...>;
 
   /*! Number of address bits covered by this map and all lower-level maps.
    */
@@ -95,7 +107,7 @@ struct ShadowMap {
     for(unsigned long long i=0; i<(1ul<<dimension0); i++){
       if(map->_pointers[i]){
         Lower::destructAt(map->_pointers[i]);
-        shadow_free(map->_pointers[i]);
+        StandardLibraryInterface::free(map->_pointers[i]);
       }
     }
   }
@@ -124,7 +136,7 @@ struct ShadowMap {
     unsigned long long index = (addr>>Lower::dimensions_sum) & ((1ul<<dimension0)-1);
     Lower* pointer = _pointers[ index ];
     if(pointer==nullptr){
-      _pointers[index] = (Lower*)shadow_malloc(sizeof(Lower));
+      _pointers[index] = (Lower*)StandardLibraryInterface::safe_malloc(sizeof(Lower));
       Lower::constructAt(_pointers[index]);
       return _pointers[index]->leaf_for_write(addr);
     } else {
@@ -151,10 +163,10 @@ struct ShadowMap {
 };
 
 
-template<typename Address, typename Leaf, void*(*shadow_malloc)(unsigned long long), void (*shadow_free)(void*), int dimension0>
-struct ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0>{
+template<typename Address, typename Leaf, typename StandardLibraryInterface, int dimension0>
+struct ShadowMap<Address,Leaf,StandardLibraryInterface,dimension0>{
 
-  using This = ShadowMap<Address,Leaf,shadow_malloc,shadow_free,dimension0>;
+  using This = ShadowMap<Address,Leaf,StandardLibraryInterface,dimension0>;
   static constexpr int dimensions_sum = dimension0;
 
   Leaf _leaf;

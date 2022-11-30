@@ -1,23 +1,11 @@
 #include "flexible-shadow.hpp"
+#include "flexible-shadow-defaultstdlib.hpp"
 #include <iostream>
-
-void* shadow_malloc(unsigned long long size){
-  std::cout << "allocating " << size << std::endl;
-  return new char[size];
-}
-
-void shadow_free(void* ptr){
-  delete[] (char*)ptr;
-}
-
-void shadow_out_of_memory(){
-  std::cerr << "Memory allocation failed." << std::endl;
-}
 
 struct Leaf { char data[1ul<<24];  void construct(){} void destruct(){} };
 
 int main(){
-  using SM = ShadowMap<unsigned long long, Leaf, shadow_malloc, shadow_free, 20, 20, 24>;
+  using SM = ShadowMap<unsigned long long, Leaf, DefaultStandardLibraryInterface, 20, 20, 24>;
   SM* sm = new SM;
   auto lookup = [&sm](unsigned long long index) -> char* {
     return &(sm->leaf_for_write(index)->data[sm->index(index)]);
