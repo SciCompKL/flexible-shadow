@@ -1,5 +1,6 @@
-#include <cstdlib>
-#include <iostream>
+#include <cstdlib> // malloc, free
+#include <cstring> // memcpy
+#include <iostream> // std::cerr, std::endl
 
 struct DefaultStandardLibraryInterface {
 
@@ -14,6 +15,10 @@ struct DefaultStandardLibraryInterface {
 
   static void free(void* ptr){
     ::free(ptr);
+  }
+
+  static void* memcpy(void* dst, const void* src, unsigned long long size){
+    return ::memcpy(dst, src, size);
   }
 
 };

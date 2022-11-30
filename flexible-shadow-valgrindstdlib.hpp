@@ -1,5 +1,6 @@
 #include <pub_tool_mallocfree.h> // VG_(malloc), VG_(free)
 #include <pub_tool_libcprint.h> // VG_(printf)
+#include <pub_tool_libcbase.h> // VG_(memcpy)
 #include <pub_tool_libcassert> // tl_assert
 
 struct ValgrindStandardLibraryInterface {
@@ -15,6 +16,10 @@ struct ValgrindStandardLibraryInterface {
 
   static void free(void* ptr){
     VG_(free)(ptr);
+  }
+
+  static void* memcpy(void* dst, const void* src, unsigned long long size){
+    return VG_(memcpy)(dst, src, size);
   }
 
 };
