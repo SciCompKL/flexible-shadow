@@ -1,10 +1,12 @@
 #ifndef FLEXIBLE_SHADOW_VALGRINDSTDLIB_HPP
 #define FLEXIBLE_SHADOW_VALGRINDSTDLIB_HPP
 
+extern "C" {
 #include <pub_tool_mallocfree.h> // VG_(malloc), VG_(free)
 #include <pub_tool_libcprint.h> // VG_(printf)
 #include <pub_tool_libcbase.h> // VG_(memcpy)
-#include <pub_tool_libcassert> // tl_assert
+#include <pub_tool_libcassert.h> // tl_assert
+}
 
 struct ValgrindStandardLibraryInterface {
 
