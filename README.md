@@ -2,7 +2,7 @@ flexible-shadow
 ===============
 
 A versatile shadow memory library based on the paper 
-*How to shadow every byte of memory used by a program.* 
+[*How to shadow every byte of memory used by a program*](https://valgrind.org/docs/shadow-memory2007.pdf)
 by Nicholas Nethercote and Julian Seward (2007).
 
 Shadow memory can be thought of as a big associative array
