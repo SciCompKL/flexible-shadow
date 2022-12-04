@@ -1,0 +1,14 @@
+image: gcc:12.2.0
+
+build_test:
+  stage: build
+  script:
+    - g++ test.cpp -o test
+  artifacts:
+    paths:
+      - test
+
+run_test:
+  stage: test
+  script:
+    - ./test
