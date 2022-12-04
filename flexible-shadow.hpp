@@ -17,13 +17,13 @@
  *
  * To access the shadow memory for a given address, a 
  * primary ShadowMap with 2^dimension0 entries is queried 
- * with the first dimension0 address bits; this yields a
- * pointer to a secondary ShadowMap with 2^dimension1 
- * entries that is queried with the next dimension1 address
- * bits, and so forth. Finally, the (N+1)-ary ShadowMap
- * is called "leaf" and stores one or many arrays with the
- * shadow data for a contiguous range of 2^dimensionN many 
- * addresses.
+ * with the most-significant dimension0 address bits; this 
+ * yields a pointer to a secondary ShadowMap with 2^dimension1 
+ * entries that is queried with the next-most significant 
+ * dimension1 address bits, and so forth. Finally, the 
+ * (N+1)-ary ShadowMap is called "leaf" and stores one or 
+ * many arrays with the shadow data for a contiguous range of 
+ * 2^dimensionN many addresses.
  * 
  * Leaves
  * ------
@@ -40,7 +40,7 @@
  *     struct Data {double d_1; int d_2;};
  *     Data data[1ul<<dimensionN];
  * 
- * or a structures-of-array approach,
+ * or a structure-of-array approach,
  * 
  *    double data_1[1ul<<dimensionN];
  *    int data_2[1ul<<dimensionN];
@@ -49,8 +49,10 @@
  * the leaf and the index within that leaf. Then, access the data in the leaf
  * according to your choice of data structure.
  * 
- * In addition to member variables for data, there must be a static member 
- * variable Leaf::distinguished of type Leaf, initialized with an empty leaf
+ * In addition to member variables for data as described in the previous
+ * paragraphs, the leaf class must have a static member variable
+ * `distinguished`. The type of `distinguished` is the leaf class, and
+ * `distinguished` should be initialized with an empty leaf
  * before the first query.
  *
  * Standard library
@@ -64,38 +66,21 @@
  * - Use DefaultStandardLibraryInterface in flexible-shadow-defaultstdlib.hpp
  *   for "normal" C++ code that may be linked against the C standard library.
  * - Use ValgrindStandardLibraryInterface in flexible-shadow-valgrindstdlib.hpp
- *   in Valgrind tool code.
+ *   in Valgrind tool code, which must not be linked against the C standard
+ *   library.
  * - Or define your own interface :)
  *
  */
 
 
 /*! \struct ShadowMap
- *
- * 
- *
- * A ShadowMap of level N=0, stores 2^dimension0 many shadow objects as a "leaf", and 
- * therefore provides shadow memory for an address space of dimension0-many bits.
- * A ShadowMap of level N>0 can store 2^dimension0 many ShadowMap's of level (N-1),
- * and therefore provides shadow memory for an address space of 
- * (dimension0+...+dimensionN)-many bits. The lower-level ShadowMap's are only
- * instantiated if the part of the address space that they cover is actually accessed.
- *
- * To access the shadow memory at address addr, obtain a pointer to the leaf shadowing 
- * addr with ShadowMap::leaf or ShadowMap::leaf_for_write, and access it at the index
- * calculated by ShadowMap::index. This two-stage procedure allows the user to store 
- * complex shadow types either in an array-of-structures or a structure-of-arrays fashion.
- * ShadowMap::leaf returns a nullptr if the memory address is not currently shadowed,
- * while ShadowMap::leaf_for_write allocates 
- *
- * This template, by itself, does not use any functions from the standard library.
- * It needs memory allocation functionality which must be provided by the template-instantiating code
- * through static methods of the template typename parameter StandardLibraryInterface.
+ * Recursive data structure, storing pointers to 2^dimension0 lower-level
+ * ShadowMaps, or in case of the lowest level, a leaf.
  *
  * \tparam Address Type of an address, e.g. unsigned long long with 64 bit.
- * \tparam Leaf Type of shadow data stored on top of each original data byte.
- * \tparam StandardLibraryInterface Class containing static functions safe_malloc, free.
- * \tparam dimension0 Number of address bits processed by highest-level map.
+ * \tparam Leaf Shadow data for 2^dimensionN memory addresses, stored by lowest level of ShadowMaps.
+ * \tparam StandardLibraryInterface Class containing static functions safe_malloc, free, memcpy.
+ * \tparam dimension0 Number of address bits processed by this map.
  * \tparam dimensions... Numbers of address bits processed by lower-level maps.
  */
 template<typename Address, typename Leaf, typename StandardLibraryInterface, int dimension0, int...dimensions>
